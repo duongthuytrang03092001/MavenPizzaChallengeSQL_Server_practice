@@ -1,0 +1,135 @@
+-- About the dataset
+
+-----*This dataset contains 4 tables in CSV format
+-------*\The Orders table: contains the date & time that all table orders were placed
+-------*\The Order Details: table contains the different pizzas served with each order in the Orders table, and their quantities
+-------*\The Pizzas table: contains the size and price for each distinct pizza in the Order Details table, as well as its broader pizza type
+-------*\The Pizza Types table: contains details on the pizza types in the Pizzas table, including their name as it appears on the menu, the category it falls under, and its list of ingredients
+
+
+select *from order_details;
+select *from orders;
+select *from pizzas;
+select *from pizza_types;
+
+
+
+# First we will create the connection to the DB, and see what tables we have
+
+1. The basic structure of the query is very simple
+- You define what you want to see after the SELECT,
+* means all possible columns You choose the table after the FROM You add the conditions for the data
+you want to use from the table(s) after the WHERE
+
+select * 
+from pizza_types
+where category = 'Chicken';
+
+2. List of Products name
+- This is the most basic query. The only must parts of a query is the SELECT and the FROM
+
+select name
+from pizza_types;
+
+3. Product list corresponding to the price of each size
+- JOIN is used when you want to connect two tables to each other. It works when you have a common key in each of them. 
+Understanding the concept of Keys is crucial for connecting (joining) between data sets (tables). 
+- A key uniquely identifies each record (row) in a table. It can consist of one value (cell) - usually ID
+or from a combination of values that are unique in the table.
+
+- When joining between different tables, you must: Decide what type of join to use. The most common are:
++ (INNER) JOIN - keep only records that match the condition (after the ON) in both the tables, and records
+in both tables that do not match wouldn't appear in the output
++ LEFT JOIN - keep all the values from the first (left) table - in conjunction with the matching rows from 
+the right table. The columns from the right table, that don't have matching values in the left, would have NULL values.
+
+
+select pt.name , p.price , p.size
+from pizza_types pt join  pizzas p 
+on pt.pizza_type_id = p.pizza_type_id;
+
+
+select pt.name , p.price , p.size , quantity,
+(price* quantity) revenue
+from pizza_types pt join  pizzas p 
+on pt.pizza_type_id = p.pizza_type_id  
+join order_details od
+on od.pizza_id = p.pizza_id;
+
+4. The most preferred pizza
+- ORDER BY defines the sorting of the output - ascending or descending (ASC)
+
+select 
+P.size ,
+sum (convert(int,quantity) )as total_sold
+from order_details OD
+join pizzas P
+on OD.pizza_id= P.pizza_id
+join pizza_types PT 
+on P.pizza_type_id = PT.pizza_type_id
+group by size
+order by size asc;
+
+5. Do some basic analytics
+
+- The functionality we will use for that is GROUP BY, which comes between the WHERE and ORDER
+   Once you chose what level you want to analyze, we can divide the SELECT statement into two:
+  + Dimensions - those are the values we describe, same that we will group by later.
+  + Metrics - all the metrics have to be aggregated using functions. The common functions are: sum(), count(), count(distinct ...), avg(), min(), max()
+
+- Revenue by month: 
+SELECT
+    DATEPART(year, O.date) AS year,
+    DATEPART(month, O.date) AS month,
+    SUM(convert(int, OD.quantity * price)) AS revenue
+FROM
+order_details OD
+JOIN orders O ON OD.order_id = O.order_id
+Join pizzas P ON P.pizza_id = OD.pizza_id
+GROUP BY
+    DATEPART(year, O.date),
+    DATEPART(month, O.date)
+HAVING 
+  SUM(convert(int, OD.quantity * price)) > 50000
+ORDER BY month ;
+
+
+- Revenue by week:
+
+WITH weekly_revenue AS (
+    SELECT
+        DATEPART(year, O.date) AS years,
+        DATEPART(month, O.date) AS months,
+        DENSE_RANK() OVER (PARTITION BY DATEPART(year, O.date), DATEPART(month, O.date) ORDER BY DATEPART(week, O.date)) AS weeks,
+        SUM(CONVERT(INT, OD.quantity) * P.price) AS Sold
+    FROM
+        order_details OD
+    JOIN orders O ON OD.order_id = O.order_id
+    JOIN pizzas P ON P.pizza_id = OD.pizza_id
+    GROUP BY
+        DATEPART(year, O.date),
+        DATEPART(month, O.date),
+        DATEPART(week, O.date),
+        DATEADD(week, DATEDIFF(week, 0, O.date), 0)
+)
+SELECT
+    years,
+    months,
+    weeks,
+    SUM(Sold) AS total_revenue
+FROM
+    weekly_revenue
+GROUP BY
+    years,
+    months,
+	weeks
+ORDER BY
+    years, months, weeks;
+
+
+
+
+
+
+
+
